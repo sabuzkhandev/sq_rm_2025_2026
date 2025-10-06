@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Retailer Attendance</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #f8f9fa;
+    }
+    .container {
+      margin-top: 50px;
+    }
+    #notFound {
+      display: none;
+    }
+    table {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="text-center mb-4">
+    <h2 class="fw-bold">Retailer Meet-(2025-2026)</h2>
+     <div class="text-center mb-4"> <img src="img/sq-group.png" alt="Flag"> </div>
+  </div>
+
+  <div class="row justify-content-center mb-3">
+    <div class="col-md-6">
+      <div class="input-group">
+        <input type="text" id="retailerId" class="form-control" placeholder="Enter retailer_id">
+        <button class="btn btn-primary" onclick="searchRetailer()">Search</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="text-center mb-3">
+    <a href="attend.html" class="btn btn-outline-success me-2">Attended</a>
+    <a href="booked.html" class="btn btn-outline-info me-2">Booked</a>
+    <a href="allRetailer.html" class="btn btn-outline-primary">All Retailers</a>
+  </div>
+
+  <p id="notFound" class="text-danger fw-bold text-center">Retailer ID not found!</p>
+
+  <div class="table-responsive">
+    <table id="retailerTable" class="table table-bordered table-striped table-hover"></table>
+  </div>
+  <div class="text-center mt-3">
+  <button id="whatsappBtn" class="btn btn-success" style="display:none;" onclick="sendWhatsApp()">
+    Send WhatsApp
+  </button>
+</div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSxZGPrmtAdJcyAcyyeZ8RF87TxXnAqXrmIfvets7GLw6OWZgAUDjEj9JID6wVt_MUDKdM-rAtpOvh_/pub?gid=0&single=true&output=csv";
+
+function parseCSV(text) {
+  const rows = [];
+  let current = '';
+  let inQuotes = false;
+  let row = [];
+
+  for (let char of text) {
+    if (char === '"' && inQuotes) {
+      inQuotes = false;
+    } else if (char === '"' && !inQuotes) {
+      inQuotes = true;
+    } else if (char === ',' && !inQuotes) {
+      row.push(current);
+      current = '';
+    } else if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (current || row.length > 0) {
+        row.push(current);
+        rows.push(row);
+        row = [];
+        current = '';
+      }
+    } else {
+      current += char;
+    }
+  }
+  if (current || row.length > 0) {
+    row.push(current);
+    rows.push(row);
+  }
+  return rows;
+}
+
+let currentRetailer = null;
+
+function searchRetailer() {
+  let inputId = document.getElementById("retailerId").value.trim();
+  document.getElementById("notFound").style.display = "none";
+  document.getElementById("retailerTable").style.display = "none";
+  document.getElementById("retailerTable").innerHTML = "";
+  document.getElementById("whatsappBtn").style.display = "none";
+
+  fetch(url)
+    .then(res => res.text())
+    .then(csv => {
+      const rows = parseCSV(csv);
+      let headers = rows[0];
+      let foundRow = rows.find((row, index) => index > 0 && row[0] === inputId);
+
+      if (foundRow) {
+        currentRetailer = {};
+        headers.forEach((h, i) => {
+          currentRetailer[h.trim()] = foundRow[i].trim();
+        });
+
+        let table = document.getElementById("retailerTable");
+
+        // build header
+        let headerTr = document.createElement("tr");
+        headers.forEach(h => {
+          let th = document.createElement("th");
+          th.textContent = h.trim();
+          headerTr.appendChild(th);
+        });
+        table.appendChild(headerTr);
+
+        // build data row
+        let dataTr = document.createElement("tr");
+        foundRow.forEach(cell => {
+          let td = document.createElement("td");
+          td.textContent = cell.trim();
+          dataTr.appendChild(td);
+        });
+        table.appendChild(dataTr);
+
+        table.style.display = "table";
+
+        // show WhatsApp button
+        document.getElementById("whatsappBtn").style.display = "inline-block";
+      } else {
+        document.getElementById("notFound").style.display = "block";
+      }
+    });
+}
+function sendWhatsApp() {
+  if (!currentRetailer) return;
+
+  // Customize the message
+  let name = currentRetailer["Owner Name"] || currentRetailer["Retailer Name"];
+  let fanBooking = currentRetailer["fan_booking"] || currentRetailer["Fan Booking"];
+  let emergencyBooking = currentRetailer["emergency_booking"] || currentRetailer["Emergency Booking"];
+  
+  // Get the phone number
+  let phone = currentRetailer["Contact Number"] || currentRetailer["Mobile"];
+  if (!phone) {
+    alert("Phone number not found for this retailer!");
+    return;
+  }
+
+  // Remove any non-digit characters
+  phone = phone.replace(/\D/g, "");
+
+  // Add +88 in front if not already
+  if (!phone.startsWith("88")) {
+    phone = "88" + phone;
+  }
+
+  let message = `Dear ${name},
+
+Thank you for your continued partnership with SQ Group. Here are your booking details:
+
+- Fan Booking Quantity: ${fanBooking}, 
+- Emergency Light Booking Quantity: ${emergencyBooking}, 
+
+Please review the quantities and confirm at your earliest convenience. For any queries or adjustments, feel free to contact your SQ Group representative.
+
+Best regards,
+SQ Group Team`;
+
+  let encodedMessage = encodeURIComponent(message);
+
+  // Open WhatsApp link with recipient number
+  window.open(`https://wa.me/${phone}?text=${encodedMessage}`, "_blank");
+}
+
+
+
+</script>
+
+</body>
+</html>
